@@ -10,7 +10,7 @@ import { toDataURL } from 'qrcode';
 import { getConfig } from '../config/loader';
 import { getAuthenticatedContext } from '../context';
 import { invalidRequest, sendOutcome } from '../fhir/outcomes';
-import { getSystemRepo } from '../fhir/repo';
+import { getGlobalSystemRepo } from '../fhir/repo';
 import { authenticateRequest } from '../oauth/middleware';
 import { verifyMfaToken } from '../oauth/utils';
 import { sendLoginResult } from './utils';
@@ -18,8 +18,8 @@ import { sendLoginResult } from './utils';
 export const mfaRouter = Router();
 
 mfaRouter.get('/status', authenticateRequest, async (_req: Request, res: Response) => {
-  const systemRepo = getSystemRepo();
   const ctx = getAuthenticatedContext();
+  const { systemRepo } = ctx;
   let user = await systemRepo.readReference<User>(ctx.membership.user as Reference<User>);
   if (user.mfaEnrolled) {
     res.json({ enrolled: true });
@@ -49,7 +49,7 @@ mfaRouter.post(
   '/login-enroll',
   [body('login').notEmpty().withMessage('Missing login'), body('token').notEmpty().withMessage('Missing token')],
   async (req: Request, res: Response) => {
-    const systemRepo = getSystemRepo();
+    const systemRepo = getGlobalSystemRepo();
     const login = await systemRepo.readResource<Login>('Login', req.body.login);
     const user = await systemRepo.readReference<User>(login.user as Reference<User>);
 
@@ -79,8 +79,8 @@ mfaRouter.post(
   authenticateRequest,
   [body('token').notEmpty().withMessage('Missing token')],
   async (req: Request, res: Response) => {
-    const systemRepo = getSystemRepo();
     const ctx = getAuthenticatedContext();
+    const { systemRepo } = ctx;
     const user = await systemRepo.readReference<User>(ctx.membership.user as Reference<User>);
 
     if (user.mfaEnrolled) {
@@ -119,7 +119,7 @@ mfaRouter.post(
       return;
     }
 
-    const systemRepo = getSystemRepo();
+    const systemRepo = getGlobalSystemRepo();
     const login = await systemRepo.readResource<Login>('Login', req.body.login);
     const result = await verifyMfaToken(login, req.body.token);
     await sendLoginResult(res, result);
@@ -131,8 +131,8 @@ mfaRouter.post(
   authenticateRequest,
   [body('token').notEmpty().withMessage('Missing token')],
   async (req: Request, res: Response) => {
-    const systemRepo = getSystemRepo();
     const ctx = getAuthenticatedContext();
+    const { systemRepo } = ctx;
     const user = await systemRepo.readReference<User>(ctx.membership.user as Reference<User>);
 
     if (!user.mfaSecret) {

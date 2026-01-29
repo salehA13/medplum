@@ -18,7 +18,7 @@ import type {
 import type { BotExecutionRequest } from '../bots/types';
 import { getConfig } from '../config/loader';
 import { AuthenticatedRequestContext, buildTracingExtension, tryGetRequestContext } from '../context';
-import { getSystemRepo } from '../fhir/repo';
+import { getGlobalSystemRepo } from '../fhir/repo';
 
 /*
  * This file includes a collection of utility functions for working with AuditEvents.
@@ -319,7 +319,7 @@ export async function createBotAuditEvent(
   for (const destination of bot.auditEventDestination ?? ['resource']) {
     switch (destination) {
       case 'resource':
-        await getSystemRepo().createResource<AuditEvent>({
+        await getGlobalSystemRepo().createResource<AuditEvent>({
           ...auditEvent,
           outcomeDesc: tail(outcomeDesc, config.maxBotLogLengthForResource ?? defaultBotOutputLength),
         });
@@ -358,7 +358,7 @@ export async function createSubscriptionAuditEvent(
   subscription?: Subscription,
   bot?: Bot
 ): Promise<void> {
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   const auditedEvent = subscription ?? resource;
 
   let extension: Extension[] | undefined;

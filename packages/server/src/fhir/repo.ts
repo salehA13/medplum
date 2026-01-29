@@ -97,7 +97,11 @@ import { AuthenticatedRequestContext, tryGetRequestContext } from '../context';
 import { DatabaseMode, getDatabasePool } from '../database';
 import { getLogger } from '../logger';
 import { incrementCounter, recordHistogramValue } from '../otel/otel';
+import type { Redis } from 'ioredis';
 import { getRedis } from '../redis';
+import { GLOBAL_SHARD_ID } from './repo-constants';
+
+export { GLOBAL_SHARD_ID } from './repo-constants';
 import { getBinaryStorage } from '../storage/loader';
 import type { AuditEventSubtype } from '../util/auditevent';
 import {
@@ -159,6 +163,12 @@ const retryableTransactionErrorCodes: string[] = [PostgresError.SerializationFai
  * such as "who is the current user?" and "what is the current project?"
  */
 export interface RepositoryContext {
+  /**
+   * The shard ID for this repository.
+   * Defaults to GLOBAL_SHARD_ID if not specified.
+   */
+  shardId?: string;
+
   /**
    * The current author reference.
    * This should be a FHIR reference string (i.e., "resourceType/id").
@@ -317,6 +327,35 @@ export class Repository extends FhirRepository<PoolClient> implements Disposable
 
   clone(): Repository {
     return new Repository(this.context, this.conn);
+  }
+
+  /**
+   * Returns the shard ID for this repository.
+   */
+  get shardId(): string {
+    return this.context.shardId ?? GLOBAL_SHARD_ID;
+  }
+
+  /**
+   * Returns a Redis client for this repository's shard.
+   */
+  getRedis(): Redis {
+    return getRedis();
+  }
+
+  /**
+   * Returns a SystemRepository for the same shard as this repository.
+   * Use this when you need elevated privileges within request handling.
+   *
+   * @example
+   * ```ts
+   * // In a request handler with user-scoped repo
+   * const systemRepo = ctx.repo.getShardSystemRepo();
+   * await systemRepo.updateResource(internalResource);
+   * ```
+   */
+  getShardSystemRepo(): SystemRepository {
+    return getGlobalSystemRepo();
   }
 
   setMode(mode: RepositoryMode): void {
@@ -2817,9 +2856,52 @@ function getProfileCacheKey(projectId: string, url: string): string {
   return `Project/${projectId}/StructureDefinition/${url}`;
 }
 
-export function getSystemRepo(conn?: PoolClient): Repository {
+// ============================================================================
+// SystemRepository Type
+// ============================================================================
+
+/**
+ * Branded type symbol for SystemRepository.
+ * Used to distinguish SystemRepository from Repository at the type level.
+ */
+declare const SystemRepoBrand: unique symbol;
+
+/**
+ * A Repository with system-level privileges.
+ *
+ * SystemRepository has elevated access:
+ * - No access policy enforcement
+ * - Can read/write any resource
+ * - Used for background jobs, migrations, internal operations
+ *
+ * Obtain via:
+ * - `getGlobalSystemRepo()` - for global shard (auth, pre-project-context)
+ * - `repo.getShardSystemRepo()` - elevate from a user-scoped repo
+ *
+ * @example
+ * ```ts
+ * // Auth layer - no project context yet
+ * const globalRepo = getGlobalSystemRepo();
+ * const user = await globalRepo.readResource('User', userId);
+ *
+ * // Request handler - elevate from user context
+ * const systemRepo = ctx.repo.getShardSystemRepo();
+ * await systemRepo.updateResource(auditEvent);
+ * ```
+ */
+export type SystemRepository = Repository & { readonly [SystemRepoBrand]: true };
+
+/**
+ * Creates a SystemRepository for the specified shard.
+ * @param shardId - The shard ID.
+ * @param conn - Optional database connection for transaction support.
+ * @returns A SystemRepository instance.
+ * @internal Prefer `repo.getShardSystemRepo()` or `getGlobalSystemRepo()`.
+ */
+function createSystemRepository(shardId: string, conn?: PoolClient): SystemRepository {
   return new Repository(
     {
+      shardId,
       superAdmin: true,
       strictMode: true,
       extendedMode: true,
@@ -2829,7 +2911,33 @@ export function getSystemRepo(conn?: PoolClient): Repository {
       // System repo does not have an associated Project; it can write to any
     },
     conn
-  );
+  ) as SystemRepository;
+}
+
+/**
+ * Returns a SystemRepository for the global shard.
+ *
+ * Use this for operations that don't have project context:
+ * - Authentication (before project is known)
+ * - Looking up Users, Logins, ClientApplications
+ * - Cross-project operations by super admins
+ *
+ * @param conn - Optional database connection for transaction support.
+ * @returns A SystemRepository for the global shard.
+ */
+export function getGlobalSystemRepo(conn?: PoolClient): SystemRepository {
+  return createSystemRepository(GLOBAL_SHARD_ID, conn);
+}
+
+/**
+ * Returns a SystemRepository.
+ * @param conn - Optional database connection for transaction support.
+ * @returns A SystemRepository instance.
+ * @deprecated Use `getGlobalSystemRepo()` for global operations, or
+ *   `repo.getShardSystemRepo()` when you have a project-scoped repository.
+ */
+export function getSystemRepo(conn?: PoolClient): SystemRepository {
+  return getGlobalSystemRepo(conn);
 }
 
 function lowercaseFirstLetter(str: string): string {

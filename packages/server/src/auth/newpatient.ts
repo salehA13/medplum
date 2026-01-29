@@ -6,7 +6,7 @@ import type { Login, Patient, Project, ProjectMembership, Reference, User } from
 import type { Request, Response } from 'express';
 import { body } from 'express-validator';
 import { sendOutcome } from '../fhir/outcomes';
-import { getSystemRepo } from '../fhir/repo';
+import { getGlobalSystemRepo } from '../fhir/repo';
 import { setLoginMembership } from '../oauth/utils';
 import { makeValidationMiddleware } from '../util/validator';
 import { createProfile, createProjectMembership } from './utils';
@@ -23,7 +23,7 @@ export const newPatientValidator = makeValidationMiddleware([
  * @param res - The HTTP response.
  */
 export async function newPatientHandler(req: Request, res: Response): Promise<void> {
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   const login = await systemRepo.readResource<Login>('Login', req.body.login);
 
   if (login.membership) {
@@ -65,7 +65,7 @@ export async function createPatient(
   firstName: string,
   lastName: string
 ): Promise<WithId<ProjectMembership>> {
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   const user = await systemRepo.readReference<User>(login.user as Reference<User>);
   const project = await systemRepo.readResource<Project>('Project', projectId);
 

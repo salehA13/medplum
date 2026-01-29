@@ -24,7 +24,7 @@ import { inviteUser } from './admin/invite';
 import type { MedplumRedisConfig } from './config/types';
 import { RequestContext } from './context';
 import type { RepositoryContext } from './fhir/repo';
-import { Repository, getSystemRepo } from './fhir/repo';
+import { Repository, getGlobalSystemRepo } from './fhir/repo';
 import { generateAccessToken } from './oauth/keys';
 import { tryLogin } from './oauth/utils';
 import { requestContextStore } from './request-context-store';
@@ -58,7 +58,7 @@ export type TestProjectResult<T extends TestProjectOptions> = {
 export async function createTestProject<T extends StrictTestProjectOptions<T> = TestProjectOptions>(
   options?: T
 ): Promise<TestProjectResult<T>> {
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
 
   const project = await systemRepo.createResource<Project>({
     resourceType: 'Project',
@@ -186,7 +186,7 @@ export async function addTestUser(
   accessPolicy?: AccessPolicy
 ): Promise<ServerInviteResponse & { accessToken: string }> {
   if (accessPolicy) {
-    const systemRepo = getSystemRepo();
+    const systemRepo = getGlobalSystemRepo();
     accessPolicy = await systemRepo.createResource<AccessPolicy>({
       ...accessPolicy,
       meta: { project: project.id },

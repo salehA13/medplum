@@ -7,7 +7,7 @@ import { Router } from 'express';
 import { executeBot } from '../bots/execute';
 import { getResponseBodyFromResult, getResponseContentType } from '../bots/utils';
 import { sendOutcome } from '../fhir/outcomes';
-import { getSystemRepo } from '../fhir/repo';
+import { getGlobalSystemRepo } from '../fhir/repo';
 import { sendBinaryResponse } from '../fhir/response';
 
 /**
@@ -16,7 +16,7 @@ import { sendBinaryResponse } from '../fhir/response';
  * @param res - The response object
  */
 export const webhookHandler = async (req: Request, res: Response): Promise<void> => {
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   const id = singularize(req.params.id) ?? '';
   const runAs = await systemRepo.readResource<ProjectMembership>('ProjectMembership', id);
 

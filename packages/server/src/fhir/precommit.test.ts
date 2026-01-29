@@ -10,11 +10,13 @@ import { loadTestConfig } from '../config/loader';
 import { systemLogger } from '../logger';
 import { createTestProject, withTestContext } from '../test.setup';
 import { deployBot } from './operations/deploy';
-import type { Repository } from './repo';
+import type { Repository, SystemRepository } from './repo';
+import { getGlobalSystemRepo } from './repo';
 
 describe('FHIR Repo', () => {
   let project: WithId<Project>;
   let repo: Repository;
+  let systemRepo: SystemRepository;
 
   beforeAll(async () => {
     const config = await loadTestConfig();
@@ -28,6 +30,7 @@ describe('FHIR Repo', () => {
         setting: [{ name: 'preCommitSubscriptionsEnabled', valueBoolean: true }],
       },
     }));
+    systemRepo = getGlobalSystemRepo();
   });
 
   afterAll(async () => {
@@ -37,7 +40,7 @@ describe('FHIR Repo', () => {
   test('Pre-commit bot execute with boolean return', () =>
     withTestContext(async () => {
       // Create a test bot
-      const bot = await createBot(repo, {
+      const bot = await createBot(repo, systemRepo, {
         project,
         name: 'Pre-commit test bot',
         runtimeVersion: 'vmcontext',
@@ -88,7 +91,7 @@ describe('FHIR Repo', () => {
   test('Pre-commit bot execute with Resource return', () =>
     withTestContext(async () => {
       // Create a test bot
-      const bot = await createBot(repo, {
+      const bot = await createBot(repo, systemRepo, {
         project,
         name: 'Pre-commit test bot',
         runtimeVersion: 'vmcontext',

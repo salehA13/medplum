@@ -8,8 +8,7 @@ import { body } from 'express-validator';
 import { Readable } from 'node:stream';
 import { getConfig } from '../config/loader';
 import { getAuthenticatedContext } from '../context';
-import type { Repository } from '../fhir/repo';
-import { getSystemRepo } from '../fhir/repo';
+import type { Repository, SystemRepository } from '../fhir/repo';
 import { getBinaryStorage } from '../storage/loader';
 import { makeValidationMiddleware } from '../util/validator';
 
@@ -27,7 +26,7 @@ export async function handler(medplum: MedplumClient, event: BotEvent): Promise<
 export async function createBotHandler(req: Request, res: Response): Promise<void> {
   const ctx = getAuthenticatedContext();
 
-  const bot = await createBot(ctx.repo, {
+  const bot = await createBot(ctx.repo, ctx.systemRepo, {
     ...req.body,
     project: ctx.project,
   });
@@ -43,7 +42,11 @@ export interface CreateBotRequest {
   readonly runtimeVersion?: 'awslambda' | 'vmcontext';
 }
 
-export async function createBot(repo: Repository, request: CreateBotRequest): Promise<WithId<Bot>> {
+export async function createBot(
+  repo: Repository,
+  systemRepo: SystemRepository,
+  request: CreateBotRequest
+): Promise<WithId<Bot>> {
   const filename = 'index.ts';
   const contentType = ContentType.TYPESCRIPT;
   const binary = await repo.createResource<Binary>({
@@ -67,7 +70,6 @@ export async function createBot(repo: Repository, request: CreateBotRequest): Pr
     },
   });
 
-  const systemRepo = getSystemRepo();
   await systemRepo.createResource<ProjectMembership>({
     meta: {
       project: request.project.id,

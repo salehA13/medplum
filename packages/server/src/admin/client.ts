@@ -13,8 +13,7 @@ import type {
 import type { Request, Response } from 'express';
 import { body } from 'express-validator';
 import { getAuthenticatedContext } from '../context';
-import type { Repository } from '../fhir/repo';
-import { getSystemRepo } from '../fhir/repo';
+import type { SystemRepository } from '../fhir/repo';
 import { generateSecret } from '../oauth/keys';
 import { makeValidationMiddleware } from '../util/validator';
 
@@ -24,14 +23,15 @@ export const createClientValidator = makeValidationMiddleware([
 
 export async function createClientHandler(req: Request, res: Response): Promise<void> {
   let project: Project;
-  const { project: localsProject, repo } = getAuthenticatedContext();
+  const ctx = getAuthenticatedContext();
+  const { project: localsProject, systemRepo } = ctx;
   if (localsProject.superAdmin) {
     project = { resourceType: 'Project', id: singularize(req.params.projectId) };
   } else {
     project = localsProject;
   }
 
-  const client = await createClient(repo, {
+  const client = await createClient(systemRepo, {
     ...req.body,
     project,
   });
@@ -53,12 +53,13 @@ export interface CreateClientRequest {
   readonly redirectUri?: string;
 }
 
-export async function createClient(repo: Repository, request: CreateClientRequest): Promise<WithId<ClientApplication>> {
-  const systemRepo = getSystemRepo();
+export async function createClient(
+  systemRepo: SystemRepository,
+  request: CreateClientRequest
+): Promise<WithId<ClientApplication>> {
   const client = await systemRepo.createResource<ClientApplication>({
     meta: {
       project: request.project.id,
-      author: repo.getConfig().author,
     },
     resourceType: 'ClientApplication',
     name: request.name,

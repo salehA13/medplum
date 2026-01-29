@@ -8,7 +8,7 @@ import { body } from 'express-validator';
 import { getConfig } from '../config/loader';
 import { sendEmail } from '../email/email';
 import { sendOutcome } from '../fhir/outcomes';
-import { getSystemRepo } from '../fhir/repo';
+import { getGlobalSystemRepo } from '../fhir/repo';
 import { generateSecret } from '../oauth/keys';
 import { makeValidationMiddleware } from '../util/validator';
 import { isExternalAuth } from './method';
@@ -54,7 +54,7 @@ export async function resetPasswordHandler(req: Request, res: Response): Promise
   }
 
   // Search for a user based on the defined filters
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   const user = await systemRepo.searchOne<User>({
     resourceType: 'User',
     filters,
@@ -106,7 +106,7 @@ export async function resetPassword(
   redirectUri?: string
 ): Promise<string> {
   // Create the password change request
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   const { id, secret } = await systemRepo.createResource<UserSecurityRequest>({
     resourceType: 'UserSecurityRequest',
     meta: { project: resolveId(user.project) },

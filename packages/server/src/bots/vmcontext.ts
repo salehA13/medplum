@@ -13,7 +13,7 @@ import fetch from 'node-fetch';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
 import { getConfig } from '../config/loader';
-import { getSystemRepo } from '../fhir/repo';
+import { getGlobalSystemRepo } from '../fhir/repo';
 import { getBinaryStorage } from '../storage/loader';
 import { MockConsole } from '../util/console';
 import { readStreamToString } from '../util/streams';
@@ -42,7 +42,7 @@ export async function runInVmContext(request: BotExecutionContext): Promise<BotE
     return { success: false, logResult: 'Executable code is not a Binary' };
   }
 
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   const binary = await systemRepo.readReference<Binary>({ reference: codeUrl } as Reference<Binary>);
   const stream = await getBinaryStorage().readBinary(binary);
   const code = await readStreamToString(stream);

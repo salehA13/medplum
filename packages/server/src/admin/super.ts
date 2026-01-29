@@ -24,7 +24,7 @@ import { getAuthenticatedContext } from '../context';
 import { DatabaseMode, getDatabasePool } from '../database';
 import { AsyncJobExecutor, sendAsyncResponse } from '../fhir/operations/utils/asyncjobexecutor';
 import { invalidRequest, sendOutcome } from '../fhir/outcomes';
-import { getSystemRepo, Repository } from '../fhir/repo';
+import { Repository } from '../fhir/repo';
 import { minCursorBasedSearchPageSize } from '../fhir/search';
 import { isValidTableName } from '../fhir/sql';
 import { globalLogger } from '../logger';
@@ -58,33 +58,30 @@ superAdminRouter.use(authenticateRequest);
 // to rebuild the terminology tables.
 // Run this after changes to how ValueSet elements are defined.
 superAdminRouter.post('/valuesets', async (req: Request, res: Response) => {
-  requireSuperAdmin();
+  const ctx = requireSuperAdmin();
   requireAsync(req);
 
-  const systemRepo = getSystemRepo();
-  await sendAsyncResponse(req, res, async () => rebuildR4ValueSets(systemRepo));
+  await sendAsyncResponse(req, res, async () => rebuildR4ValueSets(ctx.systemRepo));
 });
 
 // POST to /admin/super/structuredefinitions
 // to rebuild the "StructureDefinition" table.
 // Run this after any changes to the built-in StructureDefinitions.
 superAdminRouter.post('/structuredefinitions', async (req: Request, res: Response) => {
-  requireSuperAdmin();
+  const ctx = requireSuperAdmin();
   requireAsync(req);
 
-  const systemRepo = getSystemRepo();
-  await sendAsyncResponse(req, res, async () => rebuildR4StructureDefinitions(systemRepo));
+  await sendAsyncResponse(req, res, async () => rebuildR4StructureDefinitions(ctx.systemRepo));
 });
 
 // POST to /admin/super/searchparameters
 // to rebuild the "SearchParameter" table.
 // Run this after any changes to the built-in SearchParameters.
 superAdminRouter.post('/searchparameters', async (req: Request, res: Response) => {
-  requireSuperAdmin();
+  const ctx = requireSuperAdmin();
   requireAsync(req);
 
-  const systemRepo = getSystemRepo();
-  await sendAsyncResponse(req, res, async () => rebuildR4SearchParameters(systemRepo));
+  await sendAsyncResponse(req, res, async () => rebuildR4SearchParameters(ctx.systemRepo));
 });
 
 // POST to /admin/super/reindex
@@ -135,7 +132,7 @@ superAdminRouter.post(
       .withMessage('maxIterationAttempts must be an integer from 1 to 20'),
   ],
   async (req: Request, res: Response) => {
-    requireSuperAdmin();
+    const ctx = requireSuperAdmin();
     requireAsync(req);
 
     const errors = validationResult(req);
@@ -159,8 +156,6 @@ superAdminRouter.post(
     if (filter) {
       searchFilter = parseSearchRequest((resourceTypes[0] ?? '') + '?' + filter);
     }
-
-    const systemRepo = getSystemRepo();
 
     const reindexType = req.body.reindexType as 'outdated' | 'all' | 'specific';
     let maxResourceVersion: number | undefined;
@@ -214,7 +209,7 @@ superAdminRouter.post(
     // replace the search, if any, with queryForUrl
     asyncJobUrl.search = getQueryString(queryForUrl);
 
-    const exec = new AsyncJobExecutor(systemRepo);
+    const exec = new AsyncJobExecutor(ctx.systemRepo);
     await exec.init(asyncJobUrl.toString());
     await exec.run(async (asyncJob) => {
       await addReindexJob(resourceTypes as ResourceType[], asyncJob, opts);
@@ -443,7 +438,7 @@ superAdminRouter.post(
     checkExact(),
   ],
   async (req: Request, res: Response) => {
-    requireSuperAdmin();
+    const ctx = requireSuperAdmin();
 
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -456,7 +451,7 @@ superAdminRouter.post(
       .join(', ')});`;
 
     const startTime = Date.now();
-    await getSystemRepo().getDatabaseClient(DatabaseMode.WRITER).query(query);
+    await ctx.systemRepo.getDatabaseClient(DatabaseMode.WRITER).query(query);
     globalLogger.info('[Super Admin]: Table settings updated', {
       tableName: req.body.tableName,
       settings: req.body.settings,
@@ -484,7 +479,7 @@ superAdminRouter.post(
     checkExact(),
   ],
   async (req: Request, res: Response) => {
-    requireSuperAdmin();
+    const ctx = requireSuperAdmin();
     requireAsync(req);
 
     const errors = validationResult(req);
@@ -506,7 +501,7 @@ superAdminRouter.post(
 
     await sendAsyncResponse(req, res, async () => {
       const startTime = Date.now();
-      await getSystemRepo().getDatabaseClient(DatabaseMode.WRITER).query(query);
+      await ctx.systemRepo.getDatabaseClient(DatabaseMode.WRITER).query(query);
       globalLogger.info('[Super Admin]: Vacuum completed', {
         tableNames: req.body.tableNames,
         vacuum,

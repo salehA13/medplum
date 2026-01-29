@@ -43,7 +43,7 @@ import { getUserConfiguration } from '../auth/me';
 import { getConfig } from '../config/loader';
 import type { MedplumExternalAuthConfig } from '../config/types';
 import { getAccessPolicyForLogin, getRepoForLogin } from '../fhir/accesspolicy';
-import { getSystemRepo } from '../fhir/repo';
+import { getGlobalSystemRepo } from '../fhir/repo';
 import type { SmartScope } from '../fhir/smart';
 import { parseSmartScopes } from '../fhir/smart';
 import { getLogger } from '../logger';
@@ -136,7 +136,7 @@ export async function getClientApplication(clientId: string): Promise<ClientAppl
   if (standardClient) {
     return standardClient;
   }
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   return systemRepo.readResource<ClientApplication>('ClientApplication', clientId);
 }
 
@@ -155,7 +155,7 @@ export async function tryLogin(request: LoginRequest): Promise<WithId<Login>> {
 
   validatePkce(request, client);
 
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   let launch: SmartAppLaunch | undefined;
   if (request.launchId) {
     launch = await systemRepo.readResource<SmartAppLaunch>('SmartAppLaunch', request.launchId);
@@ -305,7 +305,7 @@ export async function verifyMfaToken(login: Login, token: string): Promise<Login
     throw new OperationOutcomeError(badRequest('Login already verified'));
   }
 
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   const user = await systemRepo.readReference(login.user as Reference<User>);
   const secret = user.mfaSecret;
   if (!secret) {
@@ -356,7 +356,7 @@ export async function getMembershipsForLogin(login: Login): Promise<WithId<Proje
     });
   }
 
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   let memberships = await systemRepo.searchResources<ProjectMembership>({
     resourceType: 'ProjectMembership',
     count: 100,
@@ -379,7 +379,7 @@ export async function getMembershipsForLogin(login: Login): Promise<WithId<Proje
 export function getClientApplicationMembership(
   client: WithId<ClientApplication>
 ): Promise<WithId<ProjectMembership> | undefined> {
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   return systemRepo.searchOne<ProjectMembership>({
     resourceType: 'ProjectMembership',
     filters: [
@@ -415,7 +415,7 @@ export async function setLoginMembership(login: Login, membershipId: string): Pr
   }
 
   // Find the membership for the user
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   let membership = undefined;
   try {
     membership = await systemRepo.readResource<ProjectMembership>('ProjectMembership', membershipId);
@@ -569,7 +569,7 @@ export async function setLoginScope(login: Login, scope: string): Promise<Login>
   }
 
   // Otherwise update scope
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   return systemRepo.updateResource<Login>({ ...login, scope });
 }
 
@@ -591,7 +591,7 @@ export async function getAuthTokens(
   }
 
   if (!login.granted) {
-    const systemRepo = getSystemRepo();
+    const systemRepo = getGlobalSystemRepo();
     await systemRepo.updateResource<Login>({
       ...login,
       granted: true,
@@ -641,7 +641,7 @@ export async function getAuthTokens(
 }
 
 export async function revokeLogin(login: Login): Promise<void> {
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   await systemRepo.updateResource<Login>({
     ...login,
     revoked: true,
@@ -656,7 +656,7 @@ export async function revokeLogin(login: Login): Promise<void> {
  * @returns The user if found; otherwise, undefined.
  */
 export async function getUserByExternalId(externalId: string, projectId: string): Promise<User | undefined> {
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   const membership = await systemRepo.searchOne<ProjectMembership>({
     resourceType: 'ProjectMembership',
     filters: [
@@ -719,7 +719,7 @@ export async function getUserByEmail(email: string, projectId: string | undefine
  * @returns The user if found; otherwise, undefined.
  */
 export async function getUserByEmailInProject(email: string, projectId: string): Promise<WithId<User> | undefined> {
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   const bundle = await systemRepo.search<User>({
     resourceType: 'User',
     filters: [
@@ -745,7 +745,7 @@ export async function getUserByEmailInProject(email: string, projectId: string):
  * @returns The user if found; otherwise, undefined.
  */
 export async function getUserByEmailWithoutProject(email: string): Promise<WithId<User> | undefined> {
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   const bundle = await systemRepo.search<User>({
     resourceType: 'User',
     filters: [
@@ -922,7 +922,7 @@ export async function getLoginForAccessToken(
 
   const claims = verifyResult.payload as MedplumAccessTokenClaims;
 
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   let login = undefined;
   try {
     login = await systemRepo.readResource<Login>('Login', claims.login_id);
@@ -959,7 +959,7 @@ export async function getLoginForBasicAuth(req: IncomingMessage, token: string):
     return undefined;
   }
 
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   let client: WithId<ClientApplication>;
   try {
     client = await systemRepo.readResource<ClientApplication>('ClientApplication', username);
@@ -1060,7 +1060,7 @@ async function tryExternalAuth(req: Request | undefined, accessToken: string): P
     return undefined;
   }
 
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   const redis = getRedis();
   const redisKey = `medplum:ext-auth:${issuer}:${hashCode(accessToken)}`;
   const cachedValue = await redis.get(redisKey);
@@ -1127,7 +1127,7 @@ async function tryExternalAuthLogin(
   }
 
   // Search for the profile
-  const systemRepo = getSystemRepo();
+  const systemRepo = getGlobalSystemRepo();
   const profile = await systemRepo.searchOne<ProfileResource>(searchRequest);
   if (!profile) {
     return undefined;
